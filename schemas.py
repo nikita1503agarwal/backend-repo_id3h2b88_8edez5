@@ -1,48 +1,62 @@
 """
-Database Schemas
+Database Schemas for External Loans Portal
 
-Define your MongoDB collection schemas here using Pydantic models.
-These schemas are used for data validation in your application.
+Each Pydantic model represents a MongoDB collection.
+Collection name is the lowercase class name.
 
-Each Pydantic model represents a collection in your database.
-Model name is converted to lowercase for the collection name:
-- User -> "user" collection
-- Product -> "product" collection
-- BlogPost -> "blogs" collection
+- Company -> "company"
+- Loan -> "loan"
+- Drawdown -> "drawdown"
+- Repayment -> "repayment"
 """
 
-from pydantic import BaseModel, Field
-from typing import Optional
+from pydantic import BaseModel, Field, EmailStr
+from typing import Optional, Literal
+from datetime import date as Date
 
-# Example schemas (replace with your own):
-
-class User(BaseModel):
+class Company(BaseModel):
     """
-    Users collection schema
-    Collection name: "user" (lowercase of class name)
+    Tunisian company registering external loans
+    Collection: company
     """
-    name: str = Field(..., description="Full name")
-    email: str = Field(..., description="Email address")
-    address: str = Field(..., description="Address")
-    age: Optional[int] = Field(None, ge=0, le=120, description="Age in years")
-    is_active: bool = Field(True, description="Whether user is active")
+    name: str = Field(..., description="Company legal name")
+    tax_id: str = Field(..., description="Matricule fiscal")
+    sector: Optional[str] = Field(None, description="Industry sector")
+    contact_email: Optional[EmailStr] = Field(None, description="Contact email")
+    contact_phone: Optional[str] = Field(None, description="Contact phone number")
 
-class Product(BaseModel):
+class Loan(BaseModel):
     """
-    Products collection schema
-    Collection name: "product" (lowercase of class name)
+    External loan contracted with a non-resident lender
+    Collection: loan
     """
-    title: str = Field(..., description="Product title")
-    description: Optional[str] = Field(None, description="Product description")
-    price: float = Field(..., ge=0, description="Price in dollars")
-    category: str = Field(..., description="Product category")
-    in_stock: bool = Field(True, description="Whether product is in stock")
+    company_id: str = Field(..., description="Reference to company _id as string")
+    lender_name: str = Field(..., description="Non-resident lender name")
+    currency: str = Field(..., min_length=3, max_length=3, description="ISO currency code, e.g., EUR, USD")
+    principal_amount: float = Field(..., ge=0, description="Original principal amount")
+    interest_rate: Optional[float] = Field(None, ge=0, description="Nominal annual interest rate (in %)")
+    start_date: Optional[Date] = Field(None, description="Start/Signature date")
+    maturity_date: Optional[Date] = Field(None, description="Final maturity date")
+    purpose: Optional[str] = Field(None, description="Use of proceeds / purpose")
+    status: Literal["active", "repaid", "defaulted", "cancelled"] = Field("active", description="Current status")
 
-# Add your own schemas here:
-# --------------------------------------------------
+class Drawdown(BaseModel):
+    """
+    Drawdowns (tirages) realized under a loan
+    Collection: drawdown
+    """
+    loan_id: str = Field(..., description="Reference to loan _id as string")
+    amount: float = Field(..., gt=0, description="Amount drawn")
+    date: Date = Field(..., description="Drawdown date")
+    remarks: Optional[str] = Field(None, description="Notes")
 
-# Note: The Flames database viewer will automatically:
-# 1. Read these schemas from GET /schema endpoint
-# 2. Use them for document validation when creating/editing
-# 3. Handle all database operations (CRUD) directly
-# 4. You don't need to create any database endpoints!
+class Repayment(BaseModel):
+    """
+    Repayments executed or planned
+    Collection: repayment
+    """
+    loan_id: str = Field(..., description="Reference to loan _id as string")
+    amount: float = Field(..., gt=0, description="Amount paid or planned")
+    date: Date = Field(..., description="Payment date (actual or planned)")
+    component: Literal["principal", "interest", "fees"] = Field("principal", description="Repayment component")
+    planned: bool = Field(False, description="True if scheduled/planned, False if already paid")
